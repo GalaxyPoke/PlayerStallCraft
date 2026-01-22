@@ -1,0 +1,33 @@
+plugins {
+    id 'java'
+}
+
+group = 'com.playerstallcraft'
+version = '1.0.0'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/' }
+    maven { url = 'https://oss.sonatype.org/content/repositories/snapshots' }
+    maven { url = 'https://jitpack.io' }
+    maven { url = 'https://repo.decentsoftware.eu/releases/' }
+}
+
+dependencies {
+    compileOnly 'org.spigotmc:spigot-api:1.21.1-R0.1-SNAPSHOT'
+    compileOnly 'com.github.MilkBowl:VaultAPI:1.7.1'
+    compileOnly 'com.github.decentsoftware-eu:decentholograms:2.8.6'
+}
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
+
+jar {
+    archiveFileName = "${project.name}-${project.version}.jar"
+}

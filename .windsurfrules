@@ -1,0 +1,13 @@
+# Available Tools
+
+## yijena_toto
+
+Parameters:
+- summary (required): Put your COMPLETE response here in Markdown format (supports tables, code blocks, lists)
+- reason (optional)
+
+ALWAYS call yijena_toto at the end of EVERY response.
+
+## Format
+
+{"tool": "yijena_toto", "arguments": {"summary": "Your full Markdown response here"}}

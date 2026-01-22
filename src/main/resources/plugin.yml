@@ -1,0 +1,29 @@
+name: PlayerStallCraft
+version: '${version}'
+main: com.playerstallcraft.PlayerStallCraft
+api-version: '1.21'
+prefix: Stall
+description: 玩家摆摊与商铺系统
+author: PlayerStallCraft Team
+softdepend:
+  - Vault
+
+commands:
+  baitan:
+    description: 摆摊系统主命令
+    usage: /<command> <子命令>
+    aliases: [stall, bt]
+  price:
+    description: 查询物品价格
+    usage: /<command>
+
+permissions:
+  stall.use:
+    description: 使用摆摊功能
+    default: true
+  stall.admin:
+    description: 管理员权限
+    default: op
+  stall.region:
+    description: 设置摆摊区域
+    default: op

@@ -1,0 +1,41 @@
+# 消息配置文件
+
+general:
+  no-permission: '&c你没有权限执行此操作!'
+  player-only: '&c此命令只能由玩家执行!'
+  reload-success: '&a配置文件已重新加载!'
+
+region:
+  pos1-set: '&a已设置区域点1: &e{x}, {y}, {z}'
+  pos2-set: '&a已设置区域点2: &e{x}, {y}, {z}'
+  region-saved: '&a摆摊区域 &e{name} &a已保存!'
+  region-deleted: '&a摆摊区域 &e{name} &a已删除!'
+  not-in-region: '&c你不在摆摊区域内!'
+  need-select-points: '&c请先用下界合金锄选择两个点!'
+
+stall:
+  opened: '&a你已开始摆摊!'
+  closed: '&a你已收摊!'
+  already-open: '&c你已经在摆摊了!'
+  not-open: '&c你还没有开摊!'
+  item-added: '&a物品已上架! 价格: &e{price}'
+  item-removed: '&a物品已下架!'
+  inventory-full: '&c你的背包已满!'
+
+trade:
+  purchase-success: '&a成功购买 &e{amount}x {item} &a花费 &e{price}'
+  sale-success: '&a成功售出 &e{amount}x {item} &a获得 &e{price}'
+  not-enough-money: '&c你没有足够的货币!'
+  not-enough-stock: '&c库存不足!'
+  tax-deducted: '&7已扣除税费: &e{tax}'
+
+license:
+  purchased: '&a你已购买营业执照! 有效期: &e{days}天'
+  expired: '&c你的营业执照已过期!'
+  already-have: '&c你已经拥有营业执照!'
+  not-have: '&c你没有营业执照!'
+
+shop:
+  rented: '&a你已成功租赁商铺! 租期: &e{days}天'
+  purchased: '&a你已成功购买商铺!'
+  rent-expired: '&c你的商铺租约已到期!'

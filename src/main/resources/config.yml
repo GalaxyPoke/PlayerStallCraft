@@ -1,0 +1,62 @@
+# PlayerStallCraft 配置文件
+
+# 数据库配置
+database:
+  # 类型: sqlite 或 mysql
+  type: sqlite
+  # MySQL配置 (仅当type为mysql时生效)
+  mysql:
+    host: localhost
+    port: 3306
+    database: playerstallcraft
+    username: root
+    password: ''
+    # 连接池设置
+    pool:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+
+# 摆摊设置
+stall:
+  # 货架最大容量
+  max-slots: 27
+  # 全息显示刷新间隔(tick, 20tick=1秒)
+  hologram-refresh-interval: 100
+  # 全息显示高度偏移
+  hologram-height-offset: 2.5
+
+# 税率设置 (百分比)
+tax:
+  # 流动摊位(无证)
+  no-license: 15.0
+  # 流动摊位(持证)
+  with-license: 8.0
+  # 租赁商铺
+  rented-shop: 3.0
+  # 购买商铺
+  owned-shop: 1.0
+
+# 营业执照
+license:
+  # 购买价格
+  price: 10000
+  # 有效期(天), -1为永久
+  duration: 30
+
+# 商铺设置
+shop:
+  # 租金(每天)
+  rent-per-day: 500
+  # 购买价格
+  buy-price: 100000
+  # 货架耐久度
+  shelf:
+    # 时间耐久(天)
+    duration-days: 30
+    # 交易量耐久(次)
+    transaction-limit: 1000
+
+# 消息前缀
+messages:
+  prefix: '&6[摆摊] &r'
