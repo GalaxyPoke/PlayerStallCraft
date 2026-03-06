@@ -282,8 +282,7 @@ public class GlobalMarketGUI implements Listener {
         String lowerName = name.toLowerCase().replace(" ", "").replace("_", "");
         
         for (GlobalMarketItem listing : plugin.getGlobalMarketManager().getAllActiveListings()) {
-            ItemStack item = plugin.getGlobalMarketManager().deserializeItemPublic(listing.getItemData());
-            if (item != null && matchesSearch(item, lowerName)) {
+            if (matchesSearchFast(listing, lowerName)) {
                 results.add(listing);
             }
         }
@@ -291,33 +290,25 @@ public class GlobalMarketGUI implements Listener {
         return results;
     }
     
-    private boolean matchesSearch(ItemStack item, String searchTerm) {
-        // 1. 检查自定义名称
-        if (item.hasItemMeta() && item.getItemMeta().hasDisplayName()) {
-            String displayName = item.getItemMeta().getDisplayName().toLowerCase()
-                .replace("§", "").replaceAll("[0-9a-fklmnor]", ""); // 移除颜色代码
-            if (displayName.contains(searchTerm)) return true;
+    private boolean matchesSearchFast(GlobalMarketItem listing, String searchTerm) {
+        // 1. 检查已存储的物品显示名（无需反序列化）
+        String itemName = listing.getItemName();
+        if (itemName != null && !itemName.isEmpty()) {
+            if (itemName.toLowerCase().replace(" ", "").replace("_", "").contains(searchTerm)) return true;
         }
         
-        // 2. 检查物品类型名（去除下划线）
-        String typeName = item.getType().name().toLowerCase().replace("_", "");
-        if (typeName.contains(searchTerm)) return true;
-        
-        // 3. 检查物品的本地化键名
-        String translationKey = item.getType().getTranslationKey();
-        if (translationKey != null && translationKey.toLowerCase().contains(searchTerm)) return true;
-        
-        // 4. 检查lore
-        if (item.hasItemMeta() && item.getItemMeta().hasLore()) {
-            for (String loreLine : item.getItemMeta().getLore()) {
-                String cleanLore = loreLine.toLowerCase().replace("§", "").replaceAll("[0-9a-fklmnor]", "");
-                if (cleanLore.contains(searchTerm)) return true;
-            }
+        // 2. 检查已存储的物品类型名
+        String itemType = listing.getItemType();
+        if (itemType != null && !itemType.isEmpty()) {
+            String normalizedType = itemType.toLowerCase().replace("_", "").replace(" ", "");
+            if (normalizedType.contains(searchTerm)) return true;
+            // 去除命名空间前缀（如 cobblemon:power_belt → powerbelt）
+            int colonIdx = normalizedType.indexOf(':');
+            if (colonIdx >= 0 && normalizedType.substring(colonIdx + 1).contains(searchTerm)) return true;
         }
         
-        // 5. 中文物品名映射（从配置文件加载）
-        String chineseName = plugin.getGlobalMarketManager().getChineseNamePublic(item.getType());
-        if (chineseName != null && chineseName.contains(searchTerm)) return true;
+        // 3. 卖家名（支持搜索卖家）
+        if (listing.getSellerName().toLowerCase().contains(searchTerm)) return true;
         
         return false;
     }

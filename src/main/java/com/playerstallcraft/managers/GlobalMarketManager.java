@@ -24,6 +24,52 @@ public class GlobalMarketManager {
         this.plugin = plugin;
         this.listings = new ConcurrentHashMap<>();
         loadListings();
+        startExpiryTask();
+    }
+
+    private void startExpiryTask() {
+        // 每5分钟检查一次过期商品，退还给卖家
+        plugin.getServer().getScheduler().runTaskTimerAsynchronously(plugin, () -> {
+            long now = System.currentTimeMillis();
+            List<GlobalMarketItem> expired = new ArrayList<>();
+            for (GlobalMarketItem item : listings.values()) {
+                if (item.isReallyExpired(now)) {
+                    expired.add(item);
+                }
+            }
+            if (expired.isEmpty()) return;
+
+            for (GlobalMarketItem listing : expired) {
+                listings.remove(listing.getId());
+                plugin.getDatabaseManager().executeAsync(
+                        "UPDATE global_market SET status = 'expired' WHERE id = ?", listing.getId()
+                );
+                ItemStack item = deserializeItem(listing.getItemData());
+                if (item == null) continue;
+                item.setAmount(listing.getAmount());
+                final ItemStack finalItem = item;
+                // 退还给卖家（可能离线），通过SweetMail
+                boolean mailSent = plugin.getSweetMailManager().sendItemMail(
+                        listing.getSellerUuid(),
+                        finalItem,
+                        "全服市场 - 商品已过期退还",
+                        "你的商品 [" + listing.getItemName() + "] x" + listing.getAmount() + " 上架已到期，物品已退还。"
+                );
+                if (!mailSent) {
+                    // SweetMail 未安装，尝试直接给在线玩家
+                    plugin.getServer().getScheduler().runTask(plugin, () -> {
+                        org.bukkit.entity.Player online = org.bukkit.Bukkit.getPlayer(listing.getSellerUuid());
+                        if (online != null && online.isOnline()) {
+                            online.getInventory().addItem(finalItem);
+                            plugin.getMessageManager().sendRaw(online,
+                                    "&e你在全服市场上架的 &f" + listing.getItemName() +
+                                    " &ex" + listing.getAmount() + " &e已过期，物品已退还到背包!");
+                        }
+                    });
+                }
+            }
+            plugin.getLogger().info("已清理 " + expired.size() + " 个过期全服市场商品");
+        }, 20L * 60 * 5, 20L * 60 * 5); // 每5分钟
     }
 
     private void loadListings() {
@@ -220,7 +266,20 @@ public class GlobalMarketManager {
         ItemStack item = deserializeItem(listing.getItemData());
         if (item != null) {
             item.setAmount(listing.getAmount());
-            seller.getInventory().addItem(item);
+            java.util.Map<Integer, ItemStack> overflow = seller.getInventory().addItem(item);
+            if (!overflow.isEmpty()) {
+                for (ItemStack overflowItem : overflow.values()) {
+                    if (!plugin.getSweetMailManager().sendItemMail(
+                            seller.getUniqueId(),
+                            overflowItem,
+                            "全服市场 - 下架退还",
+                            "你从全服市场下架的物品因背包已满已通过邮件送达，请查收附件。"
+                    )) {
+                        seller.getWorld().dropItemNaturally(seller.getLocation(), overflowItem);
+                    }
+                }
+                plugin.getMessageManager().sendRaw(seller, "&e背包已满，下架物品已通过邮件退还，请查收!");
+            }
         }
 
         listings.remove(listingId);
@@ -428,6 +487,7 @@ public class GlobalMarketManager {
         public String getCurrencyType() { return currencyType; }
         public long getExpireTime() { return expireTime; }
         public boolean isActive() { return active && System.currentTimeMillis() < expireTime; }
+        public boolean isReallyExpired(long now) { return active && now >= expireTime; }
         public void setActive(boolean active) { this.active = active; }
         
         public String getItemName() { return itemName; }

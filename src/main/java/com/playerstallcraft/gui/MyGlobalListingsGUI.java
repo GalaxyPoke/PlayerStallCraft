@@ -183,6 +183,7 @@ public class MyGlobalListingsGUI implements Listener {
         
         // 商品区域
         if (slot < 45) {
+            if (showingSold) return; // 已售出视图不可操作
             int listingIndex = currentPage * ITEMS_PER_PAGE + slot;
             if (listingIndex < myListings.size()) {
                 GlobalMarketItem listing = myListings.get(listingIndex);
