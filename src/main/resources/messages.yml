@@ -34,8 +34,21 @@ license:
   expired: '&c你的营业执照已过期!'
   already-have: '&c你已经拥有营业执照!'
   not-have: '&c你没有营业执照!'
+  not-enough-money: '&c余额不足，无法购买营业执照!'
+  no-license: '&c你还没有营业执照!'
+  purchase-success: '&a成功购买营业执照! 有效期: &e{days}天 &7花费: {price}'
+  renew-success: '&a成功续期营业执照! 续期: &e{days}天'
 
 shop:
   rented: '&a你已成功租赁商铺! 租期: &e{days}天'
   purchased: '&a你已成功购买商铺!'
   rent-expired: '&c你的商铺租约已到期!'
+
+# 区域进入提示
+area-enter:
+  # 进入摆摊区域提示
+  stall-region: '&6[摆摊区域] &e欢迎来到 &f{name}&e! &7使用 /baitan on 开始摆摊'
+  # 进入商铺提示 (有店主)
+  shop-owned: '&6[商铺] &e欢迎光临 &f{name}&e! &7店主: &f{owner}'
+  # 进入商铺提示 (无店主)
+  shop-available: '&6[商铺] &e这是一个空置商铺 &f{name}&e &7使用 /baitan shop 查看详情'

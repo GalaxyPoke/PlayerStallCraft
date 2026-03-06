@@ -50,10 +50,38 @@ public class StallItem {
         this.soldAmount += amount;
     }
 
+    public void reduceAmount(int amount) {
+        itemStack.setAmount(Math.max(0, itemStack.getAmount() - amount));
+    }
+
     public String getItemName() {
         if (itemStack.hasItemMeta() && itemStack.getItemMeta().hasDisplayName()) {
             return itemStack.getItemMeta().getDisplayName();
         }
         return itemStack.getType().name().replace("_", " ").toLowerCase();
+    }
+
+    public String serialize() {
+        try {
+            java.io.ByteArrayOutputStream outputStream = new java.io.ByteArrayOutputStream();
+            org.bukkit.util.io.BukkitObjectOutputStream dataOutput = new org.bukkit.util.io.BukkitObjectOutputStream(outputStream);
+            dataOutput.writeObject(itemStack);
+            dataOutput.close();
+            return java.util.Base64.getEncoder().encodeToString(outputStream.toByteArray());
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    public static StallItem deserialize(String data, int slot, double price, String currencyType) {
+        try {
+            java.io.ByteArrayInputStream inputStream = new java.io.ByteArrayInputStream(java.util.Base64.getDecoder().decode(data));
+            org.bukkit.util.io.BukkitObjectInputStream dataInput = new org.bukkit.util.io.BukkitObjectInputStream(inputStream);
+            ItemStack item = (ItemStack) dataInput.readObject();
+            dataInput.close();
+            return new StallItem(slot, item, price, currencyType);
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

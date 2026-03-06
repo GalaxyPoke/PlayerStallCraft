@@ -60,17 +60,26 @@ public class LicenseManager {
     }
 
     public boolean purchaseLicense(Player player) {
+        return purchaseLicense(player, "vault");
+    }
+
+    public boolean purchaseLicense(Player player, String currencyType) {
         if (hasLicense(player)) {
             return false;
         }
 
         double price = plugin.getConfigManager().getLicensePrice();
-        if (!plugin.getEconomyManager().has(player, price, "vault")) {
+        // 如果是鸽币，使用配置的鸽币价格
+        if (currencyType.equals("nye")) {
+            price = plugin.getConfig().getDouble("license.nye-price", 50000);
+        }
+        
+        if (!plugin.getEconomyManager().has(player, price, currencyType)) {
             plugin.getMessageManager().send(player, "license.not-enough-money");
             return false;
         }
 
-        if (!plugin.getEconomyManager().withdraw(player, price, "vault")) {
+        if (!plugin.getEconomyManager().withdraw(player, price, currencyType)) {
             return false;
         }
 
@@ -91,26 +100,32 @@ public class LicenseManager {
 
         plugin.getMessageManager().send(player, "license.purchase-success", MessageManager.placeholders(
                 "days", String.valueOf(durationDays),
-                "price", plugin.getEconomyManager().formatCurrency(price, "vault")
+                "price", plugin.getEconomyManager().formatCurrency(price, currencyType)
         ));
 
         return true;
     }
 
     public boolean renewLicense(Player player) {
+        return renewLicense(player, "vault");
+    }
+
+    public boolean renewLicense(Player player, String currencyType) {
         License license = licenses.get(player.getUniqueId());
         if (license == null) {
             plugin.getMessageManager().send(player, "license.no-license");
             return false;
         }
 
-        double price = plugin.getConfigManager().getLicensePrice();
-        if (!plugin.getEconomyManager().has(player, price, "vault")) {
+        double price = currencyType.equals("nye")
+                ? plugin.getConfig().getDouble("license.nye-price", 50000)
+                : plugin.getConfigManager().getLicensePrice();
+        if (!plugin.getEconomyManager().has(player, price, currencyType)) {
             plugin.getMessageManager().send(player, "license.not-enough-money");
             return false;
         }
 
-        if (!plugin.getEconomyManager().withdraw(player, price, "vault")) {
+        if (!plugin.getEconomyManager().withdraw(player, price, currencyType)) {
             return false;
         }
 

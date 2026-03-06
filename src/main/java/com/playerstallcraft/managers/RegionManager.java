@@ -5,7 +5,6 @@ import com.playerstallcraft.models.StallRegion;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
@@ -68,6 +67,14 @@ public class RegionManager {
                 && pos2Selections.containsKey(player.getUniqueId());
     }
 
+    public Location[] getSelection(Player player) {
+        if (!hasSelection(player)) return null;
+        return new Location[] {
+            pos1Selections.get(player.getUniqueId()),
+            pos2Selections.get(player.getUniqueId())
+        };
+    }
+
     public void saveRegion(String name, Player player) {
         Location pos1 = pos1Selections.get(player.getUniqueId());
         Location pos2 = pos2Selections.get(player.getUniqueId());
@@ -121,5 +128,13 @@ public class RegionManager {
 
     public Map<String, StallRegion> getRegions() {
         return regions;
+    }
+    
+    /**
+     * 清理玩家选区数据 (玩家退出时调用，防止内存泄漏)
+     */
+    public void clearPlayerSelection(UUID playerUuid) {
+        pos1Selections.remove(playerUuid);
+        pos2Selections.remove(playerUuid);
     }
 }

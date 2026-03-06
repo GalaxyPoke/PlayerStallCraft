@@ -3,6 +3,7 @@
 .gradle-download/
 gradle.zip
 build/
+bin/
 
 # IDE
 .idea/

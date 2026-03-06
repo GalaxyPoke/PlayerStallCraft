@@ -77,6 +77,12 @@ public class StallNPCManager {
         }
     }
 
+    public void rebuildAllDisplays() {
+        for (StallDisplay display : stallDisplays.values()) {
+            display.rebuild();
+        }
+    }
+
     public boolean isPlayerFrozen(UUID uuid) {
         return frozenPlayers.contains(uuid);
     }
@@ -87,7 +93,7 @@ public class StallNPCManager {
         private final Location location;
         private final Player owner;
         private final boolean useDecentHolograms;
-        private ArmorStand seatStand;
+        // 已移除座位机制，玩家站立摆摎
         private Hologram decentHologram;
         private final List<ArmorStand> hologramStands;
         private BukkitTask rotationTask;
@@ -104,17 +110,7 @@ public class StallNPCManager {
         }
 
         public void start() {
-            // 创建隐形座位盔甲架让玩家坐下
-            Location seatLoc = location.clone().subtract(0, 0.2, 0);
-            seatStand = (ArmorStand) location.getWorld().spawnEntity(seatLoc, EntityType.ARMOR_STAND);
-            seatStand.setVisible(false);
-            seatStand.setGravity(false);
-            seatStand.setInvulnerable(true);
-            seatStand.setMarker(true);
-            seatStand.setSmall(true);
-            
-            // 让玩家坐在盔甲架上
-            seatStand.addPassenger(owner);
+            // 玩家站立摆摎，通过PlayerMoveEvent禁止移动
 
             // 创建全息显示（在玩家头顶）
             if (useDecentHolograms) {
@@ -128,7 +124,8 @@ public class StallNPCManager {
         }
 
         private void createDecentHologram() {
-            Location holoLoc = location.clone().add(0, 2.5, 0);
+            double hologramHeight = plugin.getConfigManager().getConfig().getDouble("stall.hologram-height-offset", 4.5);
+            Location holoLoc = location.clone().add(0, hologramHeight, 0);
             String holoName = "stall_" + owner.getUniqueId().toString().replace("-", "");
             
             // 删除可能存在的旧全息
@@ -138,8 +135,8 @@ public class StallNPCManager {
             
             List<String> lines = new ArrayList<>();
             lines.add("&a&l" + owner.getName() + "正在摆摊中...");
-            // 标语行（支持多行，用||分隔）
-            String[] sloganParts = stall.getSlogan().split("\\|\\|");
+            // 标语行（支持多行，用#分隔）
+            String[] sloganParts = stall.getSlogan().split("#");
             sloganLineCount = sloganParts.length;
             for (String sloganLine : sloganParts) {
                 lines.add("&6" + sloganLine.trim());
@@ -153,12 +150,13 @@ public class StallNPCManager {
         }
 
         private void createFallbackHolograms() {
-            Location holoLoc = location.clone().add(0, 2.5, 0);
+            double hologramHeight = plugin.getConfigManager().getConfig().getDouble("stall.hologram-height-offset", 4.5);
+            Location holoLoc = location.clone().add(0, hologramHeight, 0);
             
             hologramStands.add(createHologramLine(holoLoc, "§a§l" + owner.getName() + "正在摆摊中..."));
-            // 标语行（支持多行，用||分隔）
+            // 标语行（支持多行，用#分隔）
             double offset = 0.3;
-            String[] sloganLines = stall.getSlogan().split("\\|\\|");
+            String[] sloganLines = stall.getSlogan().split("#");
             for (String sloganLine : sloganLines) {
                 hologramStands.add(createHologramLine(holoLoc.clone().subtract(0, offset, 0), "§6" + sloganLine.trim()));
                 offset += 0.3;
@@ -195,30 +193,42 @@ public class StallNPCManager {
         }
 
         private void updateDecentHologram(Map<Integer, StallItem> items) {
-            // 行索引: 0=玩家名, 1~sloganLineCount=标语, sloganLineCount+1=提示, sloganLineCount+2=图标, sloganLineCount+3=价格, sloganLineCount+4=销售
-            int iconLineIndex = sloganLineCount + 2;
-            int priceLineIndex = sloganLineCount + 3;
-            int salesLineIndex = sloganLineCount + 4;
-            
-            if (items.isEmpty()) {
-                DHAPI.setHologramLine(decentHologram, iconLineIndex, "#ICON:BARRIER");
-                DHAPI.setHologramLine(decentHologram, priceLineIndex, "&7暂无商品");
-            } else {
-                var itemArray = items.values().toArray(new StallItem[0]);
-                if (currentItemIndex >= itemArray.length) {
-                    currentItemIndex = 0;
+            try {
+                // 行索引: 0=玩家名, 1~sloganLineCount=标语, sloganLineCount+1=提示, sloganLineCount+2=图标, sloganLineCount+3=价格, sloganLineCount+4=销售
+                int iconLineIndex = sloganLineCount + 2;
+                int priceLineIndex = sloganLineCount + 3;
+                int salesLineIndex = sloganLineCount + 4;
+                
+                // 检查全息图行数是否足够
+                if (decentHologram == null || decentHologram.getPage(0).getLines().size() <= salesLineIndex) {
+                    // 行数不够，重建全息图
+                    rebuild();
+                    return;
                 }
                 
-                StallItem item = itemArray[currentItemIndex];
-                String iconLine = "#ICON:" + item.getItemStack().getType().name();
-                DHAPI.setHologramLine(decentHologram, iconLineIndex, iconLine);
-                DHAPI.setHologramLine(decentHologram, priceLineIndex, "&e价格: &f" + 
-                        plugin.getEconomyManager().formatCurrency(item.getPrice(), item.getCurrencyType()));
+                if (items.isEmpty()) {
+                    DHAPI.setHologramLine(decentHologram, iconLineIndex, "#ICON:BARRIER");
+                    DHAPI.setHologramLine(decentHologram, priceLineIndex, "&7暂无商品");
+                } else {
+                    var itemArray = items.values().toArray(new StallItem[0]);
+                    if (currentItemIndex >= itemArray.length) {
+                        currentItemIndex = 0;
+                    }
+                    
+                    StallItem item = itemArray[currentItemIndex];
+                    String iconLine = "#ICON:" + item.getItemStack().getType().name();
+                    DHAPI.setHologramLine(decentHologram, iconLineIndex, iconLine);
+                    DHAPI.setHologramLine(decentHologram, priceLineIndex, "&e价格: &f" + 
+                            plugin.getEconomyManager().formatCurrency(item.getPrice(), item.getCurrencyType()));
+                    
+                    currentItemIndex = (currentItemIndex + 1) % itemArray.length;
+                }
                 
-                currentItemIndex = (currentItemIndex + 1) % itemArray.length;
+                DHAPI.setHologramLine(decentHologram, salesLineIndex, "&7累计销售: &f" + stall.getTotalSoldCount() + " &7件商品");
+            } catch (Exception e) {
+                // 出错时重建全息图
+                rebuild();
             }
-            
-            DHAPI.setHologramLine(decentHologram, salesLineIndex, "&7累计销售: &f" + stall.getItemCount() + " &7件商品");
         }
 
         private void updateFallbackHolograms(Map<Integer, StallItem> items) {
@@ -247,7 +257,7 @@ public class StallNPCManager {
             }
 
             hologramStands.get(4).setCustomName("§6" + stall.getSlogan());
-            hologramStands.get(5).setCustomName("§7累计销售: §f" + stall.getItemCount() + " §7件商品");
+            hologramStands.get(5).setCustomName("§7累计销售: §f" + stall.getTotalSoldCount() + " §7件商品");
         }
 
         private void startRotation() {
@@ -279,14 +289,6 @@ public class StallNPCManager {
             if (rotationTask != null) {
                 rotationTask.cancel();
                 rotationTask = null;
-            }
-
-            // 让玩家离开座位
-            if (seatStand != null) {
-                seatStand.eject();
-                if (!seatStand.isDead()) {
-                    seatStand.remove();
-                }
             }
 
             // 移除DecentHolograms全息

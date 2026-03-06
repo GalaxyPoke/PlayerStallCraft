@@ -24,7 +24,11 @@ stall:
   # 全息显示刷新间隔(tick, 20tick=1秒)
   hologram-refresh-interval: 100
   # 全息显示高度偏移
-  hologram-height-offset: 2.5
+  hologram-height-offset: 4.5
+  # 标语最大长度(字符数)
+  max-slogan-length: 50
+  # 标语最大行数(用#分隔)
+  max-slogan-lines: 3
 
 # 税率设置 (百分比)
 tax:
@@ -39,23 +43,162 @@ tax:
 
 # 营业执照
 license:
-  # 购买价格
+  # 购买价格(金币)
   price: 10000
+  # 购买价格(鸽币)
+  nye-price: 50000
   # 有效期(天), -1为永久
   duration: 30
 
 # 商铺设置
 shop:
-  # 租金(每天)
+  # 租金 (每分钟) - 金币 / 鸽币
+  rent-per-minute: 1
+  nye-rent-per-minute: 5
+  # 租金 (每小时) - 金币 / 鸽币
+  rent-per-hour: 30
+  nye-rent-per-hour: 150
+  # 租金 (每天) - 金币
   rent-per-day: 500
-  # 购买价格
+  # 租金 (每天) - 鸽币
+  nye-rent-per-day: 2500
+  # 租金 (每月=30天) - 金币 / 鸽币
+  rent-per-month: 12000
+  nye-rent-per-month: 60000
+  # 购买价格 - 金币
   buy-price: 100000
-  # 货架耐久度
+  # 购买价格 - 鸽币
+  nye-buy-price: 500000
+  # 默认货架位置数量
+  default-shelf-slots: 1
+  # 最大货架位置数量
+  max-shelf-slots: 10
+  # 解锁货架位置价格
+  shelf-unlock-price: 5000
+  # 租约到期时额外货架槽位的退款比例 (0.0~1.0，0=不退款)
+  shelf-unlock-refund-rate: 0.8
+  # 长租折扣（满X天享受折扣，rate=折扣率，0=不启用）
+  rent-discount:
+    tier1-days: 30
+    tier1-rate: 0.95
+    tier2-days: 90
+    tier2-rate: 0.90
+  # 租期剩余几天时（登录）提醒续租
+  rent-expiry-warning-days: 3
+  # 租期剩余几分钟时（在线实时）提醒续租，0=关闭
+  rent-expiry-warning-minutes: 30
+  # 货架展示设置
   shelf:
+    # 每个货架最大商品数
+    max-items: 16
+    # 全息图轮播间隔(tick, 20=1秒)
+    carousel-interval: 60
+    # 全息图高度偏移 (木桶上方距离)
+    hologram-height: 5
     # 时间耐久(天)
     duration-days: 30
     # 交易量耐久(次)
     transaction-limit: 1000
+    # 货架物品耐久度设置
+    durability:
+      # 1耐久度可售卖的物品数量
+      sales-per-durability: 64
+      # 默认耐久度
+      default-durability: 10
+      # 最大耐久度 (-1为无限)
+      max-durability: 100
+
+# 求购系统
+buy-request:
+  # 每人最大求购数量
+  max-per-player: 10
+  # 是否需要营业执照才能发布求购
+  require-license: false
+  # 求购默认有效期（天，0=永不过期）
+  default-expire-days: 7
+  # 置顶推广费用（每次）
+  featured-cost: 500
+  # 置顶推广货币类型（vault/nye）
+  featured-currency: vault
+  # 置顶持续时长（小时）
+  featured-duration-hours: 24
+
+# 全服交易市场
+global-market:
+  # 上架费用
+  listing-fee: 100
+  # 默认上架时长(小时)
+  default-duration: 24
+  # 最大上架时长(小时)
+  max-duration: 168
+
+# 货币设置
+currency:
+  # NyEconomy货币名称 (需要与NyEconomy中配置的货币名一致)
+  nye-currency-name: '鸽币'
+
+# 圈地粒子效果设置
+# ==================== 常用粒子类型参考 ====================
+# 火焰类: FLAME(橙色火焰), SOUL_FIRE_FLAME(蓝色灵魂火焰), SMALL_FLAME(小火焰)
+# 发光类: END_ROD(末地烛/白色光点), FIREWORK(烟花), GLOW(发光)
+# 烟雾类: SMOKE(黑烟), LARGE_SMOKE(大黑烟), CLOUD(白云), CAMPFIRE_COSY_SMOKE(营火烟)
+# 爱心类: HEART(红心), DAMAGE_INDICATOR(伤害红心)
+# 星星类: CRIT(暴击星), ENCHANTED_HIT(魔法暴击), VILLAGER_HAPPY(绿色星星)
+# 气泡类: BUBBLE(水泡), BUBBLE_POP(水泡破裂)
+# 自然类: CHERRY_LEAVES(樱花), FALLING_DUST(落尘), SNOWFLAKE(雪花)
+# 魔法类: ENCHANT(附魔台文字), PORTAL(传送门), WITCH(女巫魔法), SPELL(药水漩涡)
+# 爆炸类: EXPLOSION(爆炸), POOF(消失烟雾)
+# 特效类: NOTE(音符), ELECTRIC_SPARK(电火花), WAX_ON(涂蜡), WAX_OFF(去蜡)
+# 颜色类: DUST(可自定义颜色粒子, 但需特殊处理), REDSTONE(红石粉/红色)
+# ===========================================================
+
+# 通用圈地粒子 (摆摊区域和商铺共用选点粒子)
+region-particles:
+  # 点1粒子效果 (左键选择) - 橙色火焰
+  pos1:
+    particle: FLAME
+    count: 20
+    spread: 0.3
+  # 点2粒子效果 (右键选择) - 蓝色灵魂火焰
+  pos2:
+    particle: SOUL_FIRE_FLAME
+    count: 20
+    spread: 0.3
+  # 选区边框粒子效果 - 白色光点
+  border:
+    particle: END_ROD
+    step: 1.0
+    duration: 5
+    refresh-interval: 10
+
+# 摆摊区域专属粒子 (创建后显示)
+stall-region-particles:
+  # 边框粒子 - 橙色火焰风格
+  border:
+    particle: FLAME
+    step: 1.0
+    duration: 3
+    refresh-interval: 10
+
+# 商铺区域专属粒子 (创建后显示)
+shop-region-particles:
+  # 边框粒子 - 蓝色灵魂火焰风格
+  border:
+    particle: SOUL_FIRE_FLAME
+    step: 1.0
+    duration: 3
+    refresh-interval: 10
+
+# 广告系统
+advertisement:
+  # 广告全息图高度偏移
+  hologram-height: 3.0
+  # 广告轮播间隔 (tick, 20=1秒)
+  rotation-interval: 100
+  # 默认每小时价格
+  default-price-per-hour: 100
+  # 最大投放时长 (小时)
+  max-duration-hours: 168
 
 # 消息前缀
 messages:

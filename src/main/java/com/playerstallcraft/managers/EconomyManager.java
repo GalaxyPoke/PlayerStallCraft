@@ -12,7 +12,13 @@ import java.util.UUID;
 public class EconomyManager {
 
     private final PlayerStallCraft plugin;
-    private Object nyeEconomy; // NYEconomy插件实例
+    private boolean nyeAvailable = false;
+    private String nyeCurrencyName; // NyEconomy货币名称
+    // 缓存反射方法，避免每次调用都查找
+    private java.lang.reflect.Method nyeGetBalance;
+    private java.lang.reflect.Method nyeWithdraw;
+    private java.lang.reflect.Method nyeDeposit;
+    private Object nyeApi;
 
     public EconomyManager(PlayerStallCraft plugin) {
         this.plugin = plugin;
@@ -21,12 +27,21 @@ public class EconomyManager {
 
     private void setupNYE() {
         try {
-            if (Bukkit.getPluginManager().getPlugin("NYEconomy") != null) {
-                nyeEconomy = Bukkit.getPluginManager().getPlugin("NYEconomy");
-                plugin.getLogger().info("NYEconomy 已连接!");
+            if (Bukkit.getPluginManager().getPlugin("NyEconomy") != null) {
+                nyeCurrencyName = plugin.getConfigManager().getConfig().getString("currency.nye-currency-name", "鸽币");
+                Class<?> mainClass = Class.forName("com.mc9y.nyeconomy.Main");
+                nyeApi = mainClass.getMethod("getNyEconomyAPI").invoke(null);
+                if (nyeApi != null) {
+                    nyeGetBalance = nyeApi.getClass().getMethod("getBalance", String.class, UUID.class);
+                    nyeWithdraw   = nyeApi.getClass().getMethod("withdraw",   String.class, UUID.class, int.class);
+                    nyeDeposit    = nyeApi.getClass().getMethod("deposit",    String.class, UUID.class, int.class);
+                    nyeAvailable = true;
+                    plugin.getLogger().info("NyEconomy 已连接! 使用货币: " + nyeCurrencyName);
+                }
             }
         } catch (Exception e) {
-            nyeEconomy = null;
+            nyeAvailable = false;
+            plugin.getLogger().warning("NyEconomy 初始化失败: " + e.getMessage());
         }
     }
 
@@ -35,7 +50,7 @@ public class EconomyManager {
     }
 
     public boolean hasNYE() {
-        return nyeEconomy != null;
+        return nyeAvailable;
     }
 
     public double getBalance(Player player, String currencyType) {
@@ -97,7 +112,7 @@ public class EconomyManager {
 
     public String formatCurrency(double amount, String currencyType) {
         if (currencyType.equalsIgnoreCase("nye")) {
-            return String.format("%.0f NYE", amount);
+            return String.format("%.0f %s", amount, nyeCurrencyName != null ? nyeCurrencyName : "鸽币");
         }
         if (currencyType.equalsIgnoreCase("vault") && hasVault()) {
             return plugin.getVaultEconomy().format(amount);
@@ -105,35 +120,57 @@ public class EconomyManager {
         return String.format("%.2f", amount);
     }
 
-    // NYE货币操作方法 (通过反射调用)
+    public String getCurrencyName(String currencyType) {
+        if (currencyType.equalsIgnoreCase("nye")) {
+            return nyeCurrencyName != null ? nyeCurrencyName : "鸽币";
+        }
+        if (currencyType.equalsIgnoreCase("vault")) {
+            return plugin.getConfig().getString("currency.vault-currency-name", "金币");
+        }
+        return "货币";
+    }
+
+    // NyEconomy货币操作方法 (通过反射调用 mc9y/NyEconomy)
+    // API: Main.getNyEconomyAPI() 返回 NyEconomyAPI 实例
+    // 方法: getBalance(String type, UUID uuid) -> int
+    //       withdraw(String type, UUID uuid, int amount)
+    //       deposit(String type, UUID uuid, int amount)
     private double getNYEBalance(UUID playerUuid) {
         try {
-            Class<?> apiClass = Class.forName("com.nye.economy.api.NYEconomyAPI");
-            Object api = apiClass.getMethod("getInstance").invoke(null);
-            return (double) apiClass.getMethod("getBalance", UUID.class).invoke(api, playerUuid);
+            Object result = nyeGetBalance.invoke(nyeApi, nyeCurrencyName, playerUuid);
+            return result != null ? ((Number) result).doubleValue() : 0;
         } catch (Exception e) {
+            plugin.getLogger().warning("NyEconomy getBalance 失败: " + e.getMessage());
             return 0;
         }
     }
 
     private boolean withdrawNYE(UUID playerUuid, double amount) {
         try {
-            Class<?> apiClass = Class.forName("com.nye.economy.api.NYEconomyAPI");
-            Object api = apiClass.getMethod("getInstance").invoke(null);
-            return (boolean) apiClass.getMethod("withdraw", UUID.class, double.class).invoke(api, playerUuid, amount);
+            double balance = getNYEBalance(playerUuid);
+            if (balance < amount) return false;
+            nyeWithdraw.invoke(nyeApi, nyeCurrencyName, playerUuid, (int) amount);
+            return true;
         } catch (Exception e) {
+            plugin.getLogger().warning("NyEconomy withdraw 失败: " + e.getMessage());
             return false;
         }
     }
 
     private boolean depositNYE(UUID playerUuid, double amount) {
         try {
-            Class<?> apiClass = Class.forName("com.nye.economy.api.NYEconomyAPI");
-            Object api = apiClass.getMethod("getInstance").invoke(null);
-            return (boolean) apiClass.getMethod("deposit", UUID.class, double.class).invoke(api, playerUuid, amount);
+            nyeDeposit.invoke(nyeApi, nyeCurrencyName, playerUuid, (int) amount);
+            return true;
         } catch (Exception e) {
+            plugin.getLogger().warning("NyEconomy deposit 失败: " + e.getMessage());
             return false;
         }
+    }
+
+    public void sendBalanceHint(Player player, String currencyType) {
+        double balance = getBalance(player, currencyType);
+        plugin.getMessageManager().sendRaw(player,
+            "&8当前余额: &7" + formatCurrency(balance, currencyType));
     }
 
     public double calculateTax(double amount, String stallType) {

@@ -2,7 +2,10 @@ package com.playerstallcraft.managers;
 
 import com.playerstallcraft.PlayerStallCraft;
 import com.playerstallcraft.models.PlayerStall;
+import com.playerstallcraft.models.StallItem;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
+import java.util.ArrayList;
 
 import java.util.Map;
 import java.util.UUID;
@@ -47,6 +50,32 @@ public class StallManager {
         if (stall == null) {
             return false;
         }
+
+        // 将所有未售出物品返还给玩家背包，背包满则尝试邮件投递，邮件不可用才掉落
+        boolean anyMailed = false;
+        for (StallItem item : new ArrayList<>(stall.getItems().values())) {
+            ItemStack returnItem = item.getItemStack();
+            java.util.Map<Integer, ItemStack> overflow = player.getInventory().addItem(returnItem);
+            if (!overflow.isEmpty()) {
+                for (ItemStack dropped : overflow.values()) {
+                    boolean mailed = plugin.getSweetMailManager().sendItemMail(
+                            player.getUniqueId(),
+                            dropped,
+                            "摊位收摊 - 物品返还",
+                            "你的摊位收摊，未售出的 [" + item.getItemName() + "] 因背包已满已通过邮件发送，请查收附件。"
+                    );
+                    if (mailed) {
+                        anyMailed = true;
+                    } else {
+                        player.getWorld().dropItemNaturally(player.getLocation(), dropped);
+                    }
+                }
+            }
+        }
+        if (anyMailed) {
+            plugin.getMessageManager().sendRaw(player, "&e背包已满，部分物品已通过邮件返还，请使用 /mail inbox 查收!");
+        }
+        stall.clearAllItems();
 
         stall.stop();
         

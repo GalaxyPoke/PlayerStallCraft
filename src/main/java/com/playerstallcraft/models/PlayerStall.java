@@ -21,6 +21,7 @@ public class PlayerStall {
     private BukkitTask hologramTask;
     private int currentDisplayIndex;
     private boolean active;
+    private int totalSoldCount;
 
     public PlayerStall(PlayerStallCraft plugin, Player owner, String slogan) {
         this.plugin = plugin;
@@ -31,6 +32,19 @@ public class PlayerStall {
         this.items = new HashMap<>();
         this.currentDisplayIndex = 0;
         this.active = false;
+        this.totalSoldCount = 0;
+        // 从 DB 加载历史累计销售件数
+        plugin.getDatabaseManager().queryAsync(
+                "SELECT total_sold_count FROM player_data WHERE uuid = ?",
+                ownerUuid.toString()
+        ).thenAccept(rs -> {
+            try {
+                if (rs != null && rs.next()) {
+                    this.totalSoldCount = rs.getInt("total_sold_count");
+                }
+                if (rs != null) rs.close();
+            } catch (Exception ignored) {}
+        });
     }
 
     public void start() {
@@ -62,7 +76,6 @@ public class PlayerStall {
         if (itemArray.length == 0) return;
 
         currentDisplayIndex = (currentDisplayIndex + 1) % itemArray.length;
-        StallItem item = itemArray[currentDisplayIndex];
 
         // TODO: 使用全息显示API显示商品信息
         // 这里需要集成如HolographicDisplays或DecentHolograms等插件
@@ -169,6 +182,18 @@ public class PlayerStall {
         return items.size();
     }
 
+    public int getTotalSoldCount() {
+        return totalSoldCount;
+    }
+
+    public void incrementSoldCount(int amount) {
+        this.totalSoldCount += amount;
+        plugin.getDatabaseManager().executeAsync(
+                "UPDATE player_data SET total_sold_count = total_sold_count + ? WHERE uuid = ?",
+                amount, ownerUuid.toString()
+        );
+    }
+
     public int getNextAvailableSlot() {
         int maxSlots = plugin.getConfigManager().getMaxSlots();
         for (int i = 0; i < maxSlots; i++) {
@@ -177,6 +202,14 @@ public class PlayerStall {
             }
         }
         return -1;
+    }
+
+    public void clearAllItems() {
+        items.clear();
+        plugin.getDatabaseManager().executeAsync(
+                "DELETE FROM stall_items WHERE owner_uuid = ?",
+                ownerUuid.toString()
+        );
     }
 
     public void addItem(StallItem stallItem) {

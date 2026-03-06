@@ -7,16 +7,18 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class GlobalMarketManager {
 
     private final PlayerStallCraft plugin;
     private final Map<Integer, GlobalMarketItem> listings;
-    private int nextListingId = 1;
+    private final AtomicInteger nextListingId = new AtomicInteger(1);
 
     public GlobalMarketManager(PlayerStallCraft plugin) {
         this.plugin = plugin;
@@ -42,8 +44,8 @@ public class GlobalMarketManager {
                                     rs.getLong("expire_time")
                             );
                             listings.put(id, item);
-                            if (id >= nextListingId) {
-                                nextListingId = id + 1;
+                            if (id >= nextListingId.get()) {
+                                nextListingId.set(id + 1);
                             }
                         }
                         rs.close();
@@ -62,32 +64,43 @@ public class GlobalMarketManager {
         }
 
         double listingFee = plugin.getConfigManager().getConfig().getDouble("global-market.listing-fee", 100);
-        if (!plugin.getEconomyManager().has(seller, listingFee, "vault")) {
+        // 使用选择的货币类型扣除上架费用
+        if (!plugin.getEconomyManager().has(seller, listingFee, currencyType)) {
             plugin.getMessageManager().sendRaw(seller, "&c上架费用不足! 需要 " + 
-                    plugin.getEconomyManager().formatCurrency(listingFee, "vault"));
+                    plugin.getEconomyManager().formatCurrency(listingFee, currencyType));
             return false;
         }
 
-        plugin.getEconomyManager().withdraw(seller, listingFee, "vault");
+        plugin.getEconomyManager().withdraw(seller, listingFee, currencyType);
 
-        int id = nextListingId++;
+        int id = nextListingId.getAndIncrement();
         long expireTime = System.currentTimeMillis() + (durationHours * 60L * 60 * 1000);
         String itemData = serializeItem(item);
+        
+        // 获取物品名称用于搜索
+        String itemName = getItemDisplayName(item);
+        String itemType = item.getType().name();
 
         GlobalMarketItem listing = new GlobalMarketItem(
                 id, seller.getUniqueId(), seller.getName(),
                 itemData, item.getAmount(), price, currencyType, expireTime
         );
+        listing.setItemName(itemName);
+        listing.setItemType(itemType);
         listings.put(id, listing);
 
         plugin.getDatabaseManager().executeAsync(
-                "INSERT INTO global_market (id, seller_uuid, seller_name, item_data, amount, price, currency_type, expire_time, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')",
+                "INSERT INTO global_market (id, seller_uuid, seller_name, item_data, item_name, item_type, amount, price, currency_type, expire_time, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')",
                 id, seller.getUniqueId().toString(), seller.getName(),
-                itemData, item.getAmount(), price, currencyType, expireTime
+                itemData, itemName, itemType, item.getAmount(), price, currencyType, expireTime
         );
 
         seller.getInventory().setItemInMainHand(null);
         plugin.getMessageManager().sendRaw(seller, "&a成功上架到全服市场! ID: " + id);
+
+        // 自动匹配提醒：通知有对应求购单的玩家
+        double unitPrice = item.getAmount() > 0 ? price / item.getAmount() : price;
+        plugin.getBuyRequestManager().notifyBuyRequestMatches(item.getType(), unitPrice, currencyType);
 
         return true;
     }
@@ -99,27 +112,89 @@ public class GlobalMarketManager {
             return false;
         }
 
+        // 立即标记为不可购买，防止两个玩家同时购买同一件商品（双花）
+        listing.setActive(false);
+
         if (listing.getSellerUuid().equals(buyer.getUniqueId())) {
+            listing.setActive(true); // 回滚
             plugin.getMessageManager().sendRaw(buyer, "&c不能购买自己的商品!");
             return false;
         }
 
         if (!plugin.getEconomyManager().has(buyer, listing.getPrice(), listing.getCurrencyType())) {
+            listing.setActive(true); // 回滚
             plugin.getMessageManager().sendRaw(buyer, "&c余额不足!");
             return false;
         }
 
-        plugin.getEconomyManager().withdraw(buyer, listing.getPrice(), listing.getCurrencyType());
+        if (!plugin.getEconomyManager().withdraw(buyer, listing.getPrice(), listing.getCurrencyType())) {
+            listing.setActive(true); // 回滚
+            plugin.getMessageManager().sendRaw(buyer, "&c扣款失败! 请联系管理员");
+            return false;
+        }
+        plugin.getEconomyManager().sendBalanceHint(buyer, listing.getCurrencyType());
 
         double tax = plugin.getEconomyManager().calculateTax(listing.getPrice(), "global-market");
         double sellerReceive = listing.getPrice() - tax;
         plugin.getEconomyManager().depositOffline(listing.getSellerUuid(), sellerReceive, listing.getCurrencyType());
 
         ItemStack item = deserializeItem(listing.getItemData());
+        String itemName = "未知物品";
         if (item != null) {
             item.setAmount(listing.getAmount());
-            buyer.getInventory().addItem(item);
+            itemName = item.hasItemMeta() && item.getItemMeta().hasDisplayName()
+                    ? item.getItemMeta().getDisplayName()
+                    : item.getType().name();
+
+            java.util.Map<Integer, ItemStack> overflow = buyer.getInventory().addItem(item);
+            if (!overflow.isEmpty()) {
+                // 背包已满，通过 SweetMail 投递剩余物品
+                boolean mailSent = false;
+                for (ItemStack overflowItem : overflow.values()) {
+                    if (plugin.getSweetMailManager().sendItemMail(
+                            buyer.getUniqueId(),
+                            overflowItem,
+                            "全服市场 - 购买成功",
+                            "你从全服市场购买的物品 [" + itemName + "] 因背包已满已通过邮件送达，请查收附件。",
+                            "卖家: " + listing.getSellerName(),
+                            "成交价: " + plugin.getEconomyManager().formatCurrency(listing.getPrice(), listing.getCurrencyType())
+                    )) {
+                        mailSent = true;
+                    } else {
+                        // SweetMail 未安装，直接掉落
+                        buyer.getWorld().dropItemNaturally(buyer.getLocation(), overflowItem);
+                    }
+                }
+                if (mailSent) {
+                    plugin.getMessageManager().sendRaw(buyer, "&e背包已满，物品已通过邮件送达，请查收!");
+                }
+            }
         }
+
+        // 通知卖家成交（离线时通过邮件）
+        org.bukkit.entity.Player sellerOnline = org.bukkit.Bukkit.getPlayer(listing.getSellerUuid());
+        String priceStr = plugin.getEconomyManager().formatCurrency(sellerReceive, listing.getCurrencyType());
+        if (sellerOnline != null && sellerOnline.isOnline()) {
+            plugin.getMessageManager().sendRaw(sellerOnline,
+                    "&a你在全服市场上架的 &e" + itemName + " &ax" + listing.getAmount() +
+                    " &a已售出! 到手: &e" + priceStr);
+            plugin.getEconomyManager().sendBalanceHint(sellerOnline, listing.getCurrencyType());
+        } else {
+            plugin.getSweetMailManager().sendNoticeMail(
+                    listing.getSellerUuid(),
+                    "全服市场 - 商品已售出",
+                    "你的商品 [" + itemName + "] x" + listing.getAmount() + " 已售出!",
+                    "到手金额: " + priceStr,
+                    "买家: " + buyer.getName()
+            );
+        }
+
+        // 记录交易日志
+        plugin.getTransactionLogManager().logMarketPurchase(
+                buyer.getUniqueId(), buyer.getName(),
+                listing.getSellerUuid(), listing.getSellerName(),
+                itemName, listing.getAmount(), listing.getPrice(), listing.getCurrencyType()
+        );
 
         listings.remove(listingId);
         plugin.getDatabaseManager().executeAsync(
@@ -181,6 +256,36 @@ public class GlobalMarketManager {
         return result;
     }
 
+    public void getSellerSoldHistoryAsync(UUID sellerUuid, int limit, java.util.function.Consumer<List<GlobalMarketItem>> callback) {
+        plugin.getDatabaseManager().queryAsync(
+            "SELECT * FROM global_market WHERE seller_uuid = ? AND status = 'sold' ORDER BY id DESC LIMIT ?",
+            sellerUuid.toString(), limit
+        ).thenAccept(rs -> {
+            List<GlobalMarketItem> result = new ArrayList<>();
+            try {
+                if (rs != null) {
+                    while (rs.next()) {
+                        GlobalMarketItem item = new GlobalMarketItem(
+                            rs.getInt("id"),
+                            UUID.fromString(rs.getString("seller_uuid")),
+                            rs.getString("seller_name"),
+                            rs.getString("item_data"),
+                            rs.getInt("amount"),
+                            rs.getDouble("price"),
+                            rs.getString("currency_type"),
+                            rs.getLong("expire_time")
+                        );
+                        result.add(item);
+                    }
+                    rs.close();
+                }
+            } catch (Exception e) {
+                plugin.getLogger().warning("查询售出记录失败: " + e.getMessage());
+            }
+            plugin.getServer().getScheduler().runTask(plugin, () -> callback.accept(result));
+        });
+    }
+
     public List<GlobalMarketItem> getAllActiveListings() {
         List<GlobalMarketItem> result = new ArrayList<>();
         for (GlobalMarketItem item : listings.values()) {
@@ -204,6 +309,10 @@ public class GlobalMarketManager {
     }
 
     private ItemStack deserializeItem(String data) {
+        return deserializeItemPublic(data);
+    }
+
+    public ItemStack deserializeItemPublic(String data) {
         try {
             java.io.ByteArrayInputStream inputStream = new java.io.ByteArrayInputStream(java.util.Base64.getDecoder().decode(data));
             org.bukkit.util.io.BukkitObjectInputStream dataInput = new org.bukkit.util.io.BukkitObjectInputStream(inputStream);
@@ -213,6 +322,76 @@ public class GlobalMarketManager {
         } catch (Exception e) {
             return null;
         }
+    }
+    
+    private String getItemDisplayName(ItemStack item) {
+        if (item.hasItemMeta() && item.getItemMeta().hasDisplayName()) {
+            return item.getItemMeta().getDisplayName().replaceAll("§[0-9a-fklmnor]", "");
+        }
+        String chineseName = getChineseName(item.getType());
+        return chineseName != null ? chineseName : item.getType().name().toLowerCase().replace("_", " ");
+    }
+    
+    private Map<String, String> itemNamesZh = new HashMap<>();
+    
+    public void loadItemNames() {
+        itemNamesZh.clear();
+        int count = 0;
+        
+        // 加载原版物品中文名
+        try {
+            java.io.InputStream is = plugin.getResource("item_names_zh.yml");
+            if (is != null) {
+                org.bukkit.configuration.file.YamlConfiguration config = 
+                    org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(new java.io.InputStreamReader(is, java.nio.charset.StandardCharsets.UTF_8));
+                for (String key : config.getKeys(false)) {
+                    itemNamesZh.put(key, config.getString(key));
+                    count++;
+                }
+            }
+        } catch (Exception e) {
+            plugin.getLogger().warning("加载原版物品中文名失败: " + e.getMessage());
+        }
+        
+        // 加载Cobblemon物品中文名
+        try {
+            java.io.InputStream is = plugin.getResource("cobblemon_items_zh.yml");
+            if (is != null) {
+                org.bukkit.configuration.file.YamlConfiguration config = 
+                    org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(new java.io.InputStreamReader(is, java.nio.charset.StandardCharsets.UTF_8));
+                for (String key : config.getKeys(false)) {
+                    itemNamesZh.put(key, config.getString(key));
+                    count++;
+                }
+            }
+        } catch (Exception e) {
+            plugin.getLogger().warning("加载Cobblemon物品中文名失败: " + e.getMessage());
+        }
+        
+        plugin.getLogger().info("已加载 " + count + " 个物品中文名");
+    }
+    
+    private String getChineseName(Material material) {
+        // 1. 先用 NamespacedKey 直接查（如 cobblemon:power_belt → 力量腰带）
+        try {
+            String nsKey = material.getKey().toString();
+            String r = itemNamesZh.get(nsKey);
+            if (r != null) return r;
+        } catch (Exception ignored) {}
+        // 2. 用大写 Material 名查（如 STONE → 石头）
+        String name = material.name();
+        String result = itemNamesZh.get(name);
+        if (result != null) return result;
+        // 3. COBBLEMON_XXX → cobblemon:xxx 兜底
+        if (name.startsWith("COBBLEMON_")) {
+            String nsKey = "cobblemon:" + name.substring("COBBLEMON_".length()).toLowerCase();
+            result = itemNamesZh.get(nsKey);
+        }
+        return result;
+    }
+    
+    public String getChineseNamePublic(Material material) {
+        return getChineseName(material);
     }
 
     public static class GlobalMarketItem {
@@ -224,6 +403,9 @@ public class GlobalMarketManager {
         private final double price;
         private final String currencyType;
         private final long expireTime;
+        private String itemName = "";
+        private String itemType = "";
+        private volatile boolean active = true;
 
         public GlobalMarketItem(int id, UUID sellerUuid, String sellerName, String itemData,
                                 int amount, double price, String currencyType, long expireTime) {
@@ -245,6 +427,12 @@ public class GlobalMarketManager {
         public double getPrice() { return price; }
         public String getCurrencyType() { return currencyType; }
         public long getExpireTime() { return expireTime; }
-        public boolean isActive() { return System.currentTimeMillis() < expireTime; }
+        public boolean isActive() { return active && System.currentTimeMillis() < expireTime; }
+        public void setActive(boolean active) { this.active = active; }
+        
+        public String getItemName() { return itemName; }
+        public void setItemName(String itemName) { this.itemName = itemName; }
+        public String getItemType() { return itemType; }
+        public void setItemType(String itemType) { this.itemType = itemType; }
     }
 }

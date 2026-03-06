@@ -7,15 +7,13 @@ description: 玩家摆摊与商铺系统
 author: PlayerStallCraft Team
 softdepend:
   - Vault
+  - SweetMail
 
 commands:
   baitan:
     description: 摆摊系统主命令
     usage: /<command> <子命令>
     aliases: [stall, bt]
-  price:
-    description: 查询物品价格
-    usage: /<command>
 
 permissions:
   stall.use:

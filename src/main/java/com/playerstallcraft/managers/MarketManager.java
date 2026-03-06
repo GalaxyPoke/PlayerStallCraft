@@ -6,7 +6,6 @@ import org.bukkit.Material;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -17,12 +16,13 @@ public class MarketManager {
     private final PlayerStallCraft plugin;
     private final Map<Integer, BuyRequest> buyRequests;
     private final Map<Material, List<Double>> priceHistory;
+    private static final int MAX_PRICE_HISTORY = 100; // 每种物品最多保存100条价格历史
     private int nextRequestId = 1;
 
     public MarketManager(PlayerStallCraft plugin) {
         this.plugin = plugin;
         this.buyRequests = new ConcurrentHashMap<>();
-        this.priceHistory = new HashMap<>();
+        this.priceHistory = new ConcurrentHashMap<>();
         loadBuyRequests();
     }
 
@@ -141,7 +141,7 @@ public class MarketManager {
         priceHistory.computeIfAbsent(itemType, k -> new ArrayList<>()).add(price);
         
         List<Double> prices = priceHistory.get(itemType);
-        if (prices.size() > 100) {
+        while (prices.size() > MAX_PRICE_HISTORY) {
             prices.remove(0);
         }
     }

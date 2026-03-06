@@ -94,7 +94,7 @@ public class AddItemGUI implements Listener {
         List<String> priceLore = new ArrayList<>();
         priceLore.add("");
         if (price > 0) {
-            priceLore.add(MessageManager.colorize("&a当前价格: &f" + plugin.getEconomyManager().formatCurrency(price, currencyType)));
+            priceLore.add(MessageManager.colorize("&a买家需支付价格: &f" + plugin.getEconomyManager().formatCurrency(price, currencyType)));
         } else {
             priceLore.add(MessageManager.colorize("&c尚未设置价格"));
         }
@@ -147,7 +147,7 @@ public class AddItemGUI implements Listener {
             confirmLore.add(MessageManager.colorize("&c请先放入物品"));
         }
         if (price > 0) {
-            confirmLore.add(MessageManager.colorize("&7价格: &f" + plugin.getEconomyManager().formatCurrency(price, currencyType)));
+            confirmLore.add(MessageManager.colorize("&7买家支付价格: &f" + plugin.getEconomyManager().formatCurrency(price, currencyType)));
         } else {
             confirmLore.add(MessageManager.colorize("&c请设置价格"));
         }
@@ -175,6 +175,7 @@ public class AddItemGUI implements Listener {
 
     public void open() {
         plugin.getServer().getPluginManager().registerEvents(this, plugin);
+        setupInventory();
         player.openInventory(inventory);
     }
 

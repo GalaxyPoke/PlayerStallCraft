@@ -54,8 +54,10 @@ public class StallViewGUI implements Listener {
                 if (meta != null) {
                     List<String> lore = meta.hasLore() ? new ArrayList<>(meta.getLore()) : new ArrayList<>();
                     lore.add("");
-                    lore.add(MessageManager.colorize("&e价格: &f" + plugin.getEconomyManager().formatCurrency(stallItem.getPrice(), stallItem.getCurrencyType())));
-                    lore.add(MessageManager.colorize("&7左键购买1个 | 右键购买全部"));
+                    String currencyName = plugin.getEconomyManager().getCurrencyName(stallItem.getCurrencyType());
+                    lore.add(MessageManager.colorize("&e购买单价 &7(你支付): &f" + plugin.getEconomyManager().formatCurrency(stallItem.getPrice(), stallItem.getCurrencyType())));
+                    lore.add(MessageManager.colorize("&7结算货币: &f" + currencyName));
+                    lore.add(MessageManager.colorize("&7左键: 购买1个 | 右键: 购买全部"));
                     meta.setLore(lore);
                     displayItem.setItemMeta(meta);
                 }
@@ -103,7 +105,19 @@ public class StallViewGUI implements Listener {
 
         // 购买逻辑
         boolean buyAll = event.isRightClick();
-        int amount = buyAll ? stallItem.getAmount() : 1;
+        int availableStock = stallItem.getAmount();
+        
+        // 检查库存是否足够
+        if (availableStock <= 0) {
+            plugin.getMessageManager().send(player, "trade.not-enough-stock");
+            setupInventory(); // 刷新界面
+            return;
+        }
+        
+        int amount = buyAll ? availableStock : 1;
+        // 确保购买数量不超过库存
+        amount = Math.min(amount, availableStock);
+        
         double totalPrice = stallItem.getPrice() * amount;
 
         // 检查货币
@@ -117,24 +131,33 @@ public class StallViewGUI implements Listener {
             return;
         }
 
-        // 计算税率并给卖家 (根据摊位类型)
-        String stallType = "no-license"; // TODO: 根据玩家是否有执照判断
+        // 计算税率并给卖家 (根据摊主是否持有执照)
+        boolean sellerHasLicense = plugin.getLicenseManager().hasLicense(stall.getOwnerUuid());
+        String stallType = sellerHasLicense ? "with-license" : "no-license";
         double tax = plugin.getEconomyManager().calculateTax(totalPrice, stallType);
         double sellerReceive = totalPrice - tax;
 
-        // 给卖家存款（支持离线）
+        // 给卖家存款（支持离线）并发送通知
         Player seller = Bukkit.getPlayer(stall.getOwnerUuid());
+        String priceStr = plugin.getEconomyManager().formatCurrency(sellerReceive, stallItem.getCurrencyType());
         if (seller != null && seller.isOnline()) {
             plugin.getEconomyManager().deposit(seller, sellerReceive, stallItem.getCurrencyType());
             plugin.getMessageManager().send(seller, "trade.sale-success", MessageManager.placeholders(
                     "amount", String.valueOf(amount),
                     "item", stallItem.getItemName(),
-                    "price", plugin.getEconomyManager().formatCurrency(sellerReceive, stallItem.getCurrencyType()),
+                    "price", priceStr,
                     "tax", plugin.getEconomyManager().formatCurrency(tax, stallItem.getCurrencyType())
             ));
         } else {
-            // 卖家离线时也能收款
+            // 卖家离线时存款并通过 SweetMail 通知
             plugin.getEconomyManager().depositOffline(stall.getOwnerUuid(), sellerReceive, stallItem.getCurrencyType());
+            plugin.getSweetMailManager().sendNoticeMail(
+                    stall.getOwnerUuid(),
+                    "摊位 - 商品已售出",
+                    "你的摊位商品 [" + stallItem.getItemName() + "] x" + amount + " 已售出!",
+                    "到手金额: " + priceStr,
+                    "买家: " + player.getName()
+            );
         }
 
         // 给买家物品
@@ -160,15 +183,22 @@ public class StallViewGUI implements Listener {
                 tax
         );
 
+        // 累计销售件数
+        stall.incrementSoldCount(amount);
+
         // 更新库存
-        if (buyAll) {
+        if (buyAll || amount >= stallItem.getAmount()) {
             stall.removeItem(stallItem.getSlot());
         } else {
-            ItemStack remaining = stallItem.getItemStack();
-            remaining.setAmount(remaining.getAmount() - 1);
-            if (remaining.getAmount() <= 0) {
-                stall.removeItem(stallItem.getSlot());
-            }
+            stallItem.reduceAmount(amount);
+            // 同时更新 item_data（重新序列化以嵌入新数量）和 amount，防止重启后从旧字节还原
+            plugin.getDatabaseManager().executeAsync(
+                    "UPDATE stall_items SET amount = ?, item_data = ? WHERE owner_uuid = ? AND slot = ?",
+                    stallItem.getAmount(),
+                    stallItem.serialize(),
+                    stall.getOwnerUuid().toString(),
+                    stallItem.getSlot()
+            );
         }
 
         // 刷新界面

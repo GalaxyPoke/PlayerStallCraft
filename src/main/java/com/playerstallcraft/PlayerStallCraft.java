@@ -1,10 +1,12 @@
 package com.playerstallcraft;
 
 import com.playerstallcraft.commands.BaitanCommand;
-import com.playerstallcraft.commands.PriceCommand;
 import com.playerstallcraft.database.DatabaseManager;
+import com.playerstallcraft.listeners.AreaEnterListener;
 import com.playerstallcraft.listeners.PlayerListener;
 import com.playerstallcraft.listeners.RegionSelectListener;
+import com.playerstallcraft.listeners.ShelfInteractListener;
+import com.playerstallcraft.listeners.ShelfRenameListener;
 import com.playerstallcraft.managers.ConfigManager;
 import com.playerstallcraft.managers.MessageManager;
 import com.playerstallcraft.managers.RegionManager;
@@ -13,6 +15,13 @@ import com.playerstallcraft.managers.EconomyManager;
 import com.playerstallcraft.managers.LicenseManager;
 import com.playerstallcraft.managers.MarketManager;
 import com.playerstallcraft.managers.GlobalMarketManager;
+import com.playerstallcraft.managers.BuyRequestManager;
+import com.playerstallcraft.managers.ShopManager;
+import com.playerstallcraft.managers.TransactionLogManager;
+import com.playerstallcraft.managers.ShelfHologramManager;
+import com.playerstallcraft.managers.AdManager;
+import com.playerstallcraft.managers.AdHologramManager;
+import com.playerstallcraft.managers.SweetMailManager;
 import com.playerstallcraft.hologram.HologramManager;
 import com.playerstallcraft.npc.StallNPCManager;
 import net.milkbowl.vault.economy.Economy;
@@ -32,7 +41,14 @@ public class PlayerStallCraft extends JavaPlugin {
     private LicenseManager licenseManager;
     private MarketManager marketManager;
     private GlobalMarketManager globalMarketManager;
+    private BuyRequestManager buyRequestManager;
+    private ShopManager shopManager;
     private StallNPCManager stallNPCManager;
+    private TransactionLogManager transactionLogManager;
+    private ShelfHologramManager shelfHologramManager;
+    private AdManager adManager;
+    private AdHologramManager adHologramManager;
+    private SweetMailManager sweetMailManager;
     private Economy vaultEconomy;
 
     @Override
@@ -67,16 +83,40 @@ public class PlayerStallCraft extends JavaPlugin {
         this.licenseManager = new LicenseManager(this);
         this.marketManager = new MarketManager(this);
         this.globalMarketManager = new GlobalMarketManager(this);
+        this.globalMarketManager.loadItemNames();
+        this.buyRequestManager = new BuyRequestManager(this);
+        this.shopManager = new ShopManager(this);
         this.stallNPCManager = new StallNPCManager(this);
+        this.transactionLogManager = new TransactionLogManager(this);
+        this.shelfHologramManager = new ShelfHologramManager(this);
+        this.adHologramManager = new AdHologramManager(this);
+        this.adManager = new AdManager(this);
         this.stallManager = new StallManager(this);
+        this.sweetMailManager = new SweetMailManager(this);
+
+        // 延迟初始化全息图管理器 (确保DecentHolograms已加载)
+        getServer().getScheduler().runTaskLater(this, () -> {
+            shelfHologramManager.init();
+            shelfHologramManager.reloadAll();
+            adHologramManager.init();
+            getLogger().info("已加载所有全息图");
+        }, 40L); // 2秒后加载
+
+        // 每30秒检查商铺到期，每分钟发送智能续租提醒
+        getServer().getScheduler().runTaskTimer(this, () -> shopManager.checkExpiredRents(), 600L, 600L);
+        getServer().getScheduler().runTaskTimer(this, () -> shopManager.checkRentWarnings(), 1200L, 1200L);
 
         // 注册命令
-        getCommand("baitan").setExecutor(new BaitanCommand(this));
-        getCommand("price").setExecutor(new PriceCommand(this));
+        BaitanCommand baitanCommand = new BaitanCommand(this);
+        getCommand("baitan").setExecutor(baitanCommand);
+        getCommand("baitan").setTabCompleter(baitanCommand);
 
         // 注册监听器
         getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
         getServer().getPluginManager().registerEvents(new RegionSelectListener(this), this);
+        getServer().getPluginManager().registerEvents(new AreaEnterListener(this), this);
+        getServer().getPluginManager().registerEvents(new ShelfInteractListener(this), this);
+        getServer().getPluginManager().registerEvents(new ShelfRenameListener(this), this);
 
         getLogger().info("PlayerStallCraft 已启用!");
     }
@@ -91,6 +131,16 @@ public class PlayerStallCraft extends JavaPlugin {
         // 移除所有全息显示
         if (hologramManager != null) {
             hologramManager.removeAllHolograms();
+        }
+
+        // 关闭货架全息图管理器
+        if (shelfHologramManager != null) {
+            shelfHologramManager.shutdown();
+        }
+
+        // 关闭广告全息图管理器
+        if (adHologramManager != null) {
+            adHologramManager.shutdown();
         }
 
         // 关闭数据库连接
@@ -163,5 +213,33 @@ public class PlayerStallCraft extends JavaPlugin {
 
     public StallNPCManager getStallNPCManager() {
         return stallNPCManager;
+    }
+
+    public BuyRequestManager getBuyRequestManager() {
+        return buyRequestManager;
+    }
+
+    public ShopManager getShopManager() {
+        return shopManager;
+    }
+
+    public TransactionLogManager getTransactionLogManager() {
+        return transactionLogManager;
+    }
+
+    public ShelfHologramManager getShelfHologramManager() {
+        return shelfHologramManager;
+    }
+
+    public AdManager getAdManager() {
+        return adManager;
+    }
+
+    public AdHologramManager getAdHologramManager() {
+        return adHologramManager;
+    }
+
+    public SweetMailManager getSweetMailManager() {
+        return sweetMailManager;
     }
 }
