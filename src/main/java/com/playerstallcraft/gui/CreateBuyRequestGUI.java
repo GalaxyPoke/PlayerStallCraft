@@ -1,7 +1,6 @@
 package com.playerstallcraft.gui;
 
 import com.playerstallcraft.PlayerStallCraft;
-import com.playerstallcraft.managers.GlobalMarketManager;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -178,20 +177,6 @@ public class CreateBuyRequestGUI implements Listener {
                 lore.add("§8  均价: §f" + plugin.getEconomyManager().formatCurrency(avg, currencyType));
                 lore.add("§8  最低: §a" + plugin.getEconomyManager().formatCurrency(minP, currencyType));
                 lore.add("§8  最高: §e" + plugin.getEconomyManager().formatCurrency(maxP, currencyType));
-            }
-
-            // 全服最低在售价
-            List<GlobalMarketManager.GlobalMarketItem> marketItems =
-                plugin.getGlobalMarketManager().searchByMaterial(selectedItem.getType());
-            lore.add("");
-            double lowestAsk = marketItems.stream()
-                .filter(i -> i.getCurrencyType().equals(currencyType))
-                .mapToDouble(i -> i.getAmount() > 0 ? i.getPrice() / i.getAmount() : i.getPrice())
-                .min().orElse(-1);
-            if (lowestAsk > 0) {
-                lore.add("§8▌ §7全服最低在售: §a" + plugin.getEconomyManager().formatCurrency(lowestAsk, currencyType) + "§7/个");
-            } else {
-                lore.add("§8▌ §7全服最低在售: §8暂无同货币在售");
             }
         }
 

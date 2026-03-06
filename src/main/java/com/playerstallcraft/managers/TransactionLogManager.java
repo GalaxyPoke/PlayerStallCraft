@@ -20,17 +20,7 @@ public class TransactionLogManager {
         this.plugin = plugin;
     }
 
-    /** 记录全服市场购买交易（异步写库） */
-    public void logMarketPurchase(UUID buyerUuid, String buyerName, UUID sellerUuid, String sellerName,
-                                   String itemName, int amount, double price, String currencyType) {
-        plugin.getDatabaseManager().executeAsync(
-            "INSERT INTO transaction_logs (type, seller_uuid, seller_name, buyer_uuid, buyer_name, item_name, amount, price, currency_type, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
-            "market", sellerUuid.toString(), sellerName, buyerUuid.toString(), buyerName,
-            itemName, amount, price, currencyType, System.currentTimeMillis()
-        );
-    }
-
-    /** 记录摆摊购买交易（异步写库） */
+    /** 记录摊位购买交易（异步写库） */
     public void logStallPurchase(UUID buyerUuid, String buyerName, UUID sellerUuid, String sellerName,
                                   String itemName, int amount, double price, String currencyType) {
         plugin.getDatabaseManager().executeAsync(

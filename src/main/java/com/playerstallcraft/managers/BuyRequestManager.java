@@ -150,8 +150,6 @@ public class BuyRequestManager {
                     "&7已预充 &f%s &7作为守付款，取消求购可全额退还",
                     plugin.getEconomyManager().formatCurrency(totalPrice, currencyType)
                 ));
-                // 发布后通知有匹配在售商品的求购者（自动匹配提醒反向）
-                notifyMatchingBuyRequests(item.getType(), price, currencyType);
             });
         });
     }
@@ -212,18 +210,6 @@ public class BuyRequestManager {
                     " &e(你的出价: &f" + plugin.getEconomyManager().formatCurrency(r.getPrice(), currencyType) + "&e)");
                 plugin.getMessageManager().sendRaw(buyer, "&e使用 /baitan buy 打开求购市场快速接单!");
             }
-        }
-    }
-
-    private void notifyMatchingBuyRequests(Material material, double buyerPrice, String currencyType) {
-        // 当玩家发布新求购时，检查是否有在售商品匹配，帮助其发现
-        long matchCount = plugin.getGlobalMarketManager().searchByMaterial(material).stream()
-            .filter(i -> i.getCurrencyType().equals(currencyType) &&
-                         (i.getAmount() > 0 ? i.getPrice() / i.getAmount() : i.getPrice()) <= buyerPrice)
-            .count();
-        if (matchCount > 0) {
-            // 通知由调用方在主线程中处理，这里仅记录
-            plugin.getLogger().info("新求购匹配到 " + matchCount + " 个在售商品");
         }
     }
 
