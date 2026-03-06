@@ -1,4 +1,4 @@
-﻿package com.playerstallcraft.managers;
+package com.playerstallcraft.managers;
 
 import com.playerstallcraft.PlayerStallCraft;
 import org.bukkit.Material;
