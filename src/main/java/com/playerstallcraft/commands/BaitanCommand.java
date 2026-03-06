@@ -50,6 +50,7 @@ public class BaitanCommand implements CommandExecutor, TabCompleter {
             case "ad" -> handleAd(sender, args);
             case "giveshelf" -> handleGiveShelf(sender, args);
             case "top" -> handleTop(sender, args);
+            case "marketadmin", "ma" -> handleMarketAdmin(sender);
             case "help" -> sendHelp(sender);
             default -> sendHelp(sender);
         }
@@ -344,38 +345,66 @@ public class BaitanCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("\u00a7c只有玩家才能使用此命令!");
             return;
         }
-        // 支持: /baitan top [vault|nye] [7d|30d]
+        // 支持: /baitan top [sellers|items] [vault|nye] [7d|30d]
+        boolean showItems = args.length >= 2 && args[1].equalsIgnoreCase("items");
+        int argOffset = showItems ? 2 : 1;
+
         String currency = "vault";
         int days = 30;
-        if (args.length >= 2) currency = args[1].equalsIgnoreCase("nye") ? "nye" : "vault";
-        if (args.length >= 3) {
-            try { days = Integer.parseInt(args[2].replace("d", "")); } catch (NumberFormatException ignored) {}
+        if (args.length > argOffset) currency = args[argOffset].equalsIgnoreCase("nye") ? "nye" : "vault";
+        if (args.length > argOffset + 1) {
+            try { days = Integer.parseInt(args[argOffset + 1].replace("d", "")); } catch (NumberFormatException ignored) {}
         }
         final String finalCurrency = currency;
         final int finalDays = days;
         long sinceMs = System.currentTimeMillis() - days * 86400000L;
         String currencyName = plugin.getEconomyManager().getCurrencyName(currency);
 
-        player.sendMessage("\u00a76=== 销售额排行 (近" + days + "天\u00a76|§e" + currencyName + "\u00a76) ===");
-        player.sendMessage("\u00a77查询中，请稍候...");
+        if (showItems) {
+            player.sendMessage("\u00a76=== 热门物品排行 (近" + days + "天\u00a76|\u00a7e" + currencyName + "\u00a76) ===");
+            player.sendMessage("\u00a77查询中，请稍候...");
+            plugin.getTransactionLogManager().getTopItemsAsync(finalCurrency, 10, sinceMs, rows -> {
+                if (rows.isEmpty()) { player.sendMessage("\u00a77暂无数据。"); return; }
+                player.sendMessage("\u00a76=== 热门物品排行 (近" + finalDays + "天\u00a76|\u00a7e" + currencyName + "\u00a76) ===");
+                String[] medals = {"\u00a76①", "\u00a77②", "\u00a77③"};
+                for (int i = 0; i < rows.size(); i++) {
+                    String[] row = rows.get(i);
+                    String medal = i < medals.length ? medals[i] : "\u00a77 " + (i + 1) + ".";
+                    player.sendMessage(medal + " \u00a7f" + row[0]
+                        + " \u00a77| 售出\u00a7b" + row[1] + "个"
+                        + " \u00a77| 均价\u00a7e" + row[3] + " " + currencyName);
+                }
+            });
+        } else {
+            player.sendMessage("\u00a76=== 销售额排行 (近" + days + "天\u00a76|\u00a7e" + currencyName + "\u00a76) ===");
+            player.sendMessage("\u00a77查询中，请稍候...");
+            plugin.getTransactionLogManager().getTopSellersAsync(finalCurrency, 10, sinceMs, rows -> {
+                if (rows.isEmpty()) { player.sendMessage("\u00a77暂无数据。"); return; }
+                player.sendMessage("\u00a76=== 销售额排行 (近" + finalDays + "天\u00a76|\u00a7e" + currencyName + "\u00a76) ===");
+                String[] medals = {"\u00a76①", "\u00a77②", "\u00a77③"};
+                for (int i = 0; i < rows.size(); i++) {
+                    String[] row = rows.get(i);
+                    String medal = i < medals.length ? medals[i] : "\u00a77 " + (i + 1) + ".";
+                    double revenue = Double.parseDouble(row[1]);
+                    int orders = Integer.parseInt(row[2]);
+                    player.sendMessage(medal + " \u00a7f" + row[0]
+                        + " \u00a77| 入\u00a7a" + plugin.getEconomyManager().formatCurrency(revenue, finalCurrency)
+                        + " \u00a77| " + orders + "笔");
+                }
+            });
+        }
+    }
 
-        plugin.getTransactionLogManager().getTopSellersAsync(finalCurrency, 10, sinceMs, rows -> {
-            if (rows.isEmpty()) {
-                player.sendMessage("\u00a77暂无数据。");
-                return;
-            }
-            player.sendMessage("\u00a76=== 销售额排行 (近" + finalDays + "天\u00a76|§e" + currencyName + "\u00a76) ===");
-            String[] medals = {"\u00a76\u2460", "\u00a77\u2461", "\u00a77\u2462"};
-            for (int i = 0; i < rows.size(); i++) {
-                String[] row = rows.get(i);
-                String medal = i < medals.length ? medals[i] : "\u00a77 " + (i + 1) + ".";
-                double revenue = Double.parseDouble(row[1]);
-                int orders = Integer.parseInt(row[2]);
-                player.sendMessage(medal + " \u00a7f" + row[0]
-                    + " \u00a77| 入\u00a7a" + plugin.getEconomyManager().formatCurrency(revenue, finalCurrency)
-                    + " \u00a77| " + orders + "笔");
-            }
-        });
+    private void handleMarketAdmin(CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            plugin.getMessageManager().sendRaw(sender, "&c只有玩家才能使用此命令!");
+            return;
+        }
+        if (!player.hasPermission("stall.admin")) {
+            plugin.getMessageManager().send(player, "general.no-permission");
+            return;
+        }
+        new com.playerstallcraft.gui.MarketAdminGUI(plugin, player).open();
     }
 
     private void handleReload(CommandSender sender) {

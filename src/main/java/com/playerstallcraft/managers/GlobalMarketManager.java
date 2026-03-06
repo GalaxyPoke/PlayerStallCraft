@@ -109,6 +109,17 @@ public class GlobalMarketManager {
             return false;
         }
 
+        int maxListings = plugin.getConfigManager().getConfig().getInt("global-market.max-listings-per-player", 20);
+        if (maxListings >= 0) {
+            long activeCount = listings.values().stream()
+                    .filter(l -> l.getSellerUuid().equals(seller.getUniqueId()) && l.isActive())
+                    .count();
+            if (activeCount >= maxListings) {
+                plugin.getMessageManager().sendRaw(seller, "&c你已达到上架数量上限! 最多同时上架 " + maxListings + " 件商品");
+                return false;
+            }
+        }
+
         double listingFee = plugin.getConfigManager().getConfig().getDouble("global-market.listing-fee", 100);
         // 使用选择的货币类型扣除上架费用
         if (!plugin.getEconomyManager().has(seller, listingFee, currencyType)) {
@@ -147,6 +158,12 @@ public class GlobalMarketManager {
         // 自动匹配提醒：通知有对应求购单的玩家
         double unitPrice = item.getAmount() > 0 ? price / item.getAmount() : price;
         plugin.getBuyRequestManager().notifyBuyRequestMatches(item.getType(), unitPrice, currencyType);
+
+        // 通知关注该物品的玩家
+        plugin.getMarketWatchManager().notifyWatchers(
+            listing.getItemType(), listing.getItemName().isEmpty() ? itemName : listing.getItemName(),
+            seller.getName(), unitPrice, currencyType
+        );
 
         return true;
     }

@@ -277,6 +277,17 @@ public class DatabaseManager {
             tryAddColumn(stmt, "buy_requests", "is_featured", "INTEGER DEFAULT 0");
             tryAddColumn(stmt, "buy_requests", "featured_until", "BIGINT DEFAULT 0");
 
+            // 全服市场关注表
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS market_watches (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    player_uuid VARCHAR(36) NOT NULL,
+                    item_type VARCHAR(128) NOT NULL,
+                    created_at BIGINT DEFAULT 0,
+                    UNIQUE(player_uuid, item_type)
+                )
+            """.replace("AUTOINCREMENT", dbType.equals("mysql") ? "AUTO_INCREMENT" : "AUTOINCREMENT"));
+
             // 广告位表
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS ad_slots (

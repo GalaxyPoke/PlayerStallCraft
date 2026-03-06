@@ -14,7 +14,9 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 public class ListToMarketGUI implements Listener {
 
@@ -26,6 +28,7 @@ public class ListToMarketGUI implements Listener {
     private double price = 0;
     private String currencyType = "vault";
     private int duration = 24; // 默认24小时
+    private double avgPrice = -1; // -1 = 未查询 / 无数据
     
     private boolean waitingForPrice = false;
     private boolean waitingForDuration = false;
@@ -34,6 +37,25 @@ public class ListToMarketGUI implements Listener {
     public ListToMarketGUI(PlayerStallCraft plugin, Player player) {
         this.plugin = plugin;
         this.player = player;
+    }
+
+    private void queryAvgPrice() {
+        if (selectedItem == null) return;
+        String itemName = selectedItem.hasItemMeta() && selectedItem.getItemMeta().hasDisplayName()
+            ? selectedItem.getItemMeta().getDisplayName().replaceAll("§[0-9a-fklmnor]", "")
+            : selectedItem.getType().name();
+        plugin.getTransactionLogManager().getItemPriceHistoryAsync(itemName, currencyType, 20, prices -> {
+            if (prices.isEmpty()) {
+                avgPrice = 0;
+            } else {
+                double sum = 0;
+                for (double p : prices) sum += p;
+                avgPrice = sum / prices.size();
+            }
+            if (inventory != null && player.getOpenInventory().getTopInventory().equals(inventory)) {
+                refreshDisplay();
+            }
+        });
     }
 
     public void open() {
@@ -74,10 +96,20 @@ public class ListToMarketGUI implements Listener {
         
         // 设置区域
         // 价格设置
-        ItemStack priceItem = createItem(Material.GOLD_INGOT, "§e设置售出价格", 
-            "§7商品售价 §7(买家支付你): §f" + (price > 0 ? plugin.getEconomyManager().formatCurrency(price, currencyType) : "未设置"),
-            "",
-            "§a点击设置售价");
+        List<String> priceLore = new ArrayList<>();
+        priceLore.add("§7商品售价 §7(买家支付你): §f" + (price > 0 ? plugin.getEconomyManager().formatCurrency(price, currencyType) : "未设置"));
+        if (avgPrice > 0) {
+            priceLore.add("§7近期均价(单价): §e" + plugin.getEconomyManager().formatCurrency(avgPrice, currencyType));
+            if (selectedItem != null && selectedItem.getAmount() > 1) {
+                priceLore.add("§7建议总价: §e" + plugin.getEconomyManager().formatCurrency(avgPrice * selectedItem.getAmount(), currencyType));
+            }
+        } else if (avgPrice == 0) {
+            priceLore.add("§7近期均价: §7暂无成交记录");
+        }
+        priceLore.add("");
+        priceLore.add("§a点击设置售价");
+        ItemStack priceItem = createItem(Material.GOLD_INGOT, "§e设置售出价格",
+            priceLore.toArray(new String[0]));
         inventory.setItem(20, priceItem);
         
         // 货币类型
@@ -105,6 +137,17 @@ public class ListToMarketGUI implements Listener {
             "§7使用: §f" + (currencyType.equals("vault") ? "金币" : "鸽币") + " §7支付",
             "§7(每次上架都需支付)");
         inventory.setItem(31, feeInfo);
+
+        // 批量上架按钮（选中物品后显示）
+        if (selectedItem != null) {
+            int totalSameItems = countSameItemsInInventory(selectedItem);
+            ItemStack batchItem = createItem(Material.BUNDLE, "§b批量上架",
+                "§7将背包中所有相同物品合并上架",
+                "§7可合并数量: §f" + totalSameItems + " 个",
+                "",
+                "§a点击选取全部同类物品");
+            inventory.setItem(26, batchItem);
+        }
         
         // 底部控制栏
         for (int i = 45; i < 54; i++) {
@@ -137,6 +180,25 @@ public class ListToMarketGUI implements Listener {
         // 关闭
         ItemStack closeItem = createItem(Material.BARRIER, "§c取消", "§7关闭界面");
         inventory.setItem(53, closeItem);
+    }
+
+    private int countSameItemsInInventory(ItemStack template) {
+        int total = 0;
+        for (ItemStack stack : player.getInventory().getContents()) {
+            if (stack != null && !stack.getType().isAir() && isSameType(stack, template)) {
+                total += stack.getAmount();
+            }
+        }
+        return total;
+    }
+
+    private boolean isSameType(ItemStack a, ItemStack b) {
+        if (a.getType() != b.getType()) return false;
+        boolean aMeta = a.hasItemMeta() && a.getItemMeta().hasDisplayName();
+        boolean bMeta = b.hasItemMeta() && b.getItemMeta().hasDisplayName();
+        if (aMeta != bMeta) return false;
+        if (aMeta && !a.getItemMeta().getDisplayName().equals(b.getItemMeta().getDisplayName())) return false;
+        return true;
     }
 
     private ItemStack createItem(Material material, String name, String... loreLines) {
@@ -176,6 +238,8 @@ public class ListToMarketGUI implements Listener {
                     // 左键：1个
                     selectedItem.setAmount(1);
                 }
+                avgPrice = -1;
+                queryAvgPrice();
                 refreshDisplay();
                 return;
             }
@@ -193,7 +257,20 @@ public class ListToMarketGUI implements Listener {
                 // 清除已选物品
                 if (selectedItem != null) {
                     selectedItem = null;
+                    avgPrice = -1;
                     refreshDisplay();
+                }
+            }
+            case 26 -> {
+                // 批量上架：选取背包中所有同类物品
+                if (selectedItem != null) {
+                    int total = countSameItemsInInventory(selectedItem);
+                    if (total > 0) {
+                        selectedItem = selectedItem.clone();
+                        selectedItem.setAmount(total);
+                        refreshDisplay();
+                        plugin.getMessageManager().sendRaw(player, "&a已选取 &f" + total + " &a个同类物品");
+                    }
                 }
             }
             case 20 -> {

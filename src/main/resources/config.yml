@@ -131,6 +131,8 @@ global-market:
   default-duration: 24
   # 最大上架时长(小时)
   max-duration: 168
+  # 每人最大同时上架数量 (-1=不限制)
+  max-listings-per-player: 20
 
 # 货币设置
 currency:

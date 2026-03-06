@@ -183,6 +183,38 @@ public class TransactionLogManager {
         });
     }
 
+    /**
+     * 异步查询热门物品排行（交易量最高），回调在主线程
+     * 返回 List<String[]> 每项 [item_name, total_sold, orders, avg_unit_price, currency_type]
+     */
+    public void getTopItemsAsync(String currencyType, int limit, long sinceMs, Consumer<List<String[]>> callback) {
+        plugin.getDatabaseManager().queryAsync(
+            "SELECT item_name, SUM(amount) as total_sold, COUNT(*) as orders, AVG(price * 1.0 / amount) as avg_unit_price" +
+            " FROM transaction_logs WHERE currency_type = ? AND created_at >= ? AND amount > 0" +
+            " GROUP BY item_name ORDER BY total_sold DESC LIMIT ?",
+            currencyType, sinceMs, limit
+        ).thenAccept(rs -> {
+            List<String[]> rows = new ArrayList<>();
+            try {
+                if (rs != null) {
+                    while (rs.next()) {
+                        rows.add(new String[]{
+                            rs.getString("item_name"),
+                            String.valueOf(rs.getLong("total_sold")),
+                            String.valueOf(rs.getInt("orders")),
+                            String.format("%.2f", rs.getDouble("avg_unit_price")),
+                            currencyType
+                        });
+                    }
+                    rs.close();
+                }
+            } catch (Exception e) {
+                plugin.getLogger().warning("查询热门物品失败: " + e.getMessage());
+            }
+            plugin.getServer().getScheduler().runTask(plugin, () -> callback.accept(rows));
+        });
+    }
+
     /** 卖家统计数据容器 */
     public static class SellerStats {
         public final double totalRevenue;
