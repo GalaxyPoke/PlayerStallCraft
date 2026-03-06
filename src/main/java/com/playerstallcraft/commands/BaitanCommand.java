@@ -37,7 +37,6 @@ public class BaitanCommand implements CommandExecutor, TabCompleter {
             case "slogan" -> handleSlogan(sender, args);
             case "myitems" -> handleMyItems(sender);
             case "buy" -> handleBuyRequest(sender);
-            case "market" -> handleMarket(sender);
             case "shop" -> handleShop(sender);
             case "regioncreate", "rc" -> handleRegionCreate(sender);
             case "regionmanage", "rm" -> handleRegionManage(sender);
@@ -50,7 +49,6 @@ public class BaitanCommand implements CommandExecutor, TabCompleter {
             case "ad" -> handleAd(sender, args);
             case "giveshelf" -> handleGiveShelf(sender, args);
             case "top" -> handleTop(sender, args);
-            case "marketadmin", "ma" -> handleMarketAdmin(sender);
             case "help" -> sendHelp(sender);
             default -> sendHelp(sender);
         }
@@ -162,16 +160,6 @@ public class BaitanCommand implements CommandExecutor, TabCompleter {
 
         // 打开求购市场GUI
         new com.playerstallcraft.gui.BuyRequestGUI(plugin, player).open();
-    }
-
-    private void handleMarket(CommandSender sender) {
-        if (!(sender instanceof Player player)) {
-            plugin.getMessageManager().send(sender, "general.player-only");
-            return;
-        }
-
-        // 打开全服交易市场GUI
-        new com.playerstallcraft.gui.GlobalMarketGUI(plugin, player).open();
     }
 
     private void handleShop(CommandSender sender) {
@@ -395,18 +383,6 @@ public class BaitanCommand implements CommandExecutor, TabCompleter {
         }
     }
 
-    private void handleMarketAdmin(CommandSender sender) {
-        if (!(sender instanceof Player player)) {
-            plugin.getMessageManager().sendRaw(sender, "&c只有玩家才能使用此命令!");
-            return;
-        }
-        if (!player.hasPermission("stall.admin")) {
-            plugin.getMessageManager().send(player, "general.no-permission");
-            return;
-        }
-        new com.playerstallcraft.gui.MarketAdminGUI(plugin, player).open();
-    }
-
     private void handleReload(CommandSender sender) {
         if (!sender.hasPermission("stall.admin")) {
             plugin.getMessageManager().send(sender, "general.no-permission");
@@ -577,7 +553,6 @@ public class BaitanCommand implements CommandExecutor, TabCompleter {
         plugin.getMessageManager().sendRaw(sender, "&e/baitan slogan <标语> &7- 设置摊位标语");
         plugin.getMessageManager().sendRaw(sender, "&e/baitan myitems &7- 打开商品管理界面");
         plugin.getMessageManager().sendRaw(sender, "&e/baitan buy &7- 打开求购市场");
-        plugin.getMessageManager().sendRaw(sender, "&e/baitan market &7- 打开全服交易市场");
         plugin.getMessageManager().sendRaw(sender, "&e/baitan shop &7- 查看/租赁/购买商铺");
         plugin.getMessageManager().sendRaw(sender, "&e/baitan license &7- 查看/购买营业执照");
         plugin.getMessageManager().sendRaw(sender, "&e/baitan list &7- 查看摆摊玩家");
@@ -600,7 +575,7 @@ public class BaitanCommand implements CommandExecutor, TabCompleter {
         List<String> completions = new ArrayList<>();
 
         if (args.length == 1) {
-            completions.addAll(Arrays.asList("on", "off", "slogan", "myitems", "buy", "market", "shop", "license", "list", "price", "ad", "top", "help", "confirmmove", "cancelmove"));
+            completions.addAll(Arrays.asList("on", "off", "slogan", "myitems", "buy", "shop", "license", "list", "price", "ad", "top", "help", "confirmmove", "cancelmove"));
             if (sender.hasPermission("stall.region")) {
                 completions.add("rm");
                 completions.add("rc");

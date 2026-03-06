@@ -123,17 +123,6 @@ buy-request:
   # 置顶持续时长（小时）
   featured-duration-hours: 24
 
-# 全服交易市场
-global-market:
-  # 上架费用
-  listing-fee: 100
-  # 默认上架时长(小时)
-  default-duration: 24
-  # 最大上架时长(小时)
-  max-duration: 168
-  # 每人最大同时上架数量 (-1=不限制)
-  max-listings-per-player: 20
-
 # 货币设置
 currency:
   # NyEconomy货币名称 (需要与NyEconomy中配置的货币名一致)

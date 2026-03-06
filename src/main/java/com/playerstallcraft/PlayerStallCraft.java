@@ -21,7 +21,6 @@ import com.playerstallcraft.managers.TransactionLogManager;
 import com.playerstallcraft.managers.ShelfHologramManager;
 import com.playerstallcraft.managers.AdManager;
 import com.playerstallcraft.managers.AdHologramManager;
-import com.playerstallcraft.managers.MarketWatchManager;
 import com.playerstallcraft.managers.SweetMailManager;
 import com.playerstallcraft.hologram.HologramManager;
 import com.playerstallcraft.npc.StallNPCManager;
@@ -49,7 +48,6 @@ public class PlayerStallCraft extends JavaPlugin {
     private ShelfHologramManager shelfHologramManager;
     private AdManager adManager;
     private AdHologramManager adHologramManager;
-    private MarketWatchManager marketWatchManager;
     private SweetMailManager sweetMailManager;
     private Economy vaultEconomy;
 
@@ -95,7 +93,6 @@ public class PlayerStallCraft extends JavaPlugin {
         this.adManager = new AdManager(this);
         this.stallManager = new StallManager(this);
         this.sweetMailManager = new SweetMailManager(this);
-        this.marketWatchManager = new MarketWatchManager(this);
 
         // 延迟初始化全息图管理器 (确保DecentHolograms已加载)
         getServer().getScheduler().runTaskLater(this, () -> {
@@ -246,7 +243,4 @@ public class PlayerStallCraft extends JavaPlugin {
         return sweetMailManager;
     }
 
-    public MarketWatchManager getMarketWatchManager() {
-        return marketWatchManager;
-    }
 }

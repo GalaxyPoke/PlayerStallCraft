@@ -203,32 +203,6 @@ public class DatabaseManager {
                 )
             """.replace("AUTOINCREMENT", dbType.equals("mysql") ? "AUTO_INCREMENT" : "AUTOINCREMENT"));
 
-            // 全服市场表
-            stmt.execute("""
-                CREATE TABLE IF NOT EXISTS global_market (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    seller_uuid VARCHAR(36) NOT NULL,
-                    seller_name VARCHAR(16) NOT NULL,
-                    item_data TEXT NOT NULL,
-                    item_name VARCHAR(128) DEFAULT '',
-                    item_type VARCHAR(128) DEFAULT '',
-                    amount INTEGER NOT NULL,
-                    price DECIMAL(15,2) NOT NULL,
-                    currency_type VARCHAR(32) DEFAULT 'vault',
-                    expire_time BIGINT NOT NULL,
-                    status VARCHAR(16) DEFAULT 'active',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """.replace("AUTOINCREMENT", dbType.equals("mysql") ? "AUTO_INCREMENT" : "AUTOINCREMENT"));
-            
-            // 尝试添加新列（兼容旧数据库）
-            try {
-                stmt.execute("ALTER TABLE global_market ADD COLUMN item_name VARCHAR(128) DEFAULT ''");
-            } catch (Exception ignored) {}
-            try {
-                stmt.execute("ALTER TABLE global_market ADD COLUMN item_type VARCHAR(128) DEFAULT ''");
-            } catch (Exception ignored) {}
-
             // 货架表
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS shop_shelves (
@@ -276,17 +250,6 @@ public class DatabaseManager {
             tryAddColumn(stmt, "buy_requests", "remaining_amount", "INTEGER DEFAULT 0");
             tryAddColumn(stmt, "buy_requests", "is_featured", "INTEGER DEFAULT 0");
             tryAddColumn(stmt, "buy_requests", "featured_until", "BIGINT DEFAULT 0");
-
-            // 全服市场关注表
-            stmt.execute("""
-                CREATE TABLE IF NOT EXISTS market_watches (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    player_uuid VARCHAR(36) NOT NULL,
-                    item_type VARCHAR(128) NOT NULL,
-                    created_at BIGINT DEFAULT 0,
-                    UNIQUE(player_uuid, item_type)
-                )
-            """.replace("AUTOINCREMENT", dbType.equals("mysql") ? "AUTO_INCREMENT" : "AUTOINCREMENT"));
 
             // 广告位表
             stmt.execute("""
